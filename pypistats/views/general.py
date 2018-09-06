@@ -1,4 +1,5 @@
 """General pages."""
+from collections import defaultdict
 from copy import deepcopy
 import os
 import re
@@ -117,20 +118,32 @@ def package(package):
     # Get data from db
     model_data = []
     for model in MODELS:
-        model_data.append({
-            "name": model.__tablename__,
-            "data": get_download_data(package, model),
-        })
+
+        if model == OverallDownloadCount:
+            metrics = ["downloads"]
+        else:
+            metrics = ["downloads", "percentages"]
+
+        data = get_download_data(package, model, metrics)
+
+        for idx, metric in enumerate(metrics):
+            model_data.append({
+                "metric": metric,
+                "name": model.__tablename__,
+                "data": data[idx],
+            })
 
     # Build the plots
     plots = []
     for model in model_data:
-        plot = deepcopy(current_app.config["PLOT_BASE"])
+        plot = deepcopy(current_app.config["PLOT_BASE"])[model["metric"]]
         data = []
         for category, values in model["data"].items():
-            base = deepcopy(current_app.config["DATA_BASE"]["data"][0])
+            base = deepcopy(current_app.config["DATA_BASE"][model["metric"]]["data"][0])
             base["x"] = values["x"]
             base["y"] = values["y"]
+            if model["metric"] == "percentages":
+                base["text"] = values["text"]
             base["name"] = category.title()
             data.append(base)
         plot["data"] = data
@@ -148,18 +161,28 @@ def package(package):
     )
 
 
-def get_download_data(package, model):
+def get_download_data(package, model, metrics):
     """Get the download data for a package - model."""
     records = model.query.filter_by(package=package).\
         order_by(model.category,
                  model.date).all()
-    data = {}
-    for record in records:
-        category = record.category
-        if category not in data:
-            data[category] = {"x": [], "y": []}
-        data[category]["x"].append(str(record.date))
-        data[category]["y"].append(record.downloads)
+    data = []
+    for metric in metrics:
+        cumsum = defaultdict(float)
+        data_entry = {}
+        for record in records:
+            category = record.category
+            if category not in data_entry:
+                data_entry[category] = {"x": [], "y": [], "text": []}
+            data_entry[category]["x"].append(str(record.date))
+            if metric == "percentages":
+                value = getattr(record, metric) or 0
+                cumsum[str(record.date)] += value
+                data_entry[category]["y"].append(cumsum[str(record.date)])
+                data_entry[category]["text"].append("{0:.2f}%".format(value) + " = {:,}".format(record.downloads))
+            else:
+                data_entry[category]["y"].append(getattr(record, metric) or 0)
+        data.append(data_entry)
     return data
 
 

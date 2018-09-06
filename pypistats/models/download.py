@@ -18,7 +18,7 @@ class OverallDownloadCount(Model):
     downloads = Column(db.Integer(), nullable=False)
 
     def __repr__(self):
-        return "<OverallDownloadCount {}".format(
+        return "<OverallDownloadCount {}>".format(
             f"{str(self.date)} - {str(self.package)} - {str(self.category)}"
         )
 
@@ -35,9 +35,10 @@ class PythonMajorDownloadCount(Model):
     # python_major version, 2 or 3 (or null)
     category = Column(db.String(4), primary_key=True, nullable=True)
     downloads = Column(db.Integer(), nullable=False)
+    percentages = Column(db.Float(), nullable=True)
 
     def __repr__(self):
-        return "<PythonMajorDownloadCount {}".format(
+        return "<PythonMajorDownloadCount {}>".format(
             f"{str(self.date)} - {str(self.package)} - {str(self.category)}"
         )
 
@@ -54,9 +55,10 @@ class PythonMinorDownloadCount(Model):
     # python_minor version, e.g. 2.7 or 3.6 (or null)
     category = Column(db.String(4), primary_key=True, nullable=True)
     downloads = Column(db.Integer(), nullable=False)
+    percentages = Column(db.Float(), nullable=True)
 
     def __repr__(self):
-        return "<PythonMinorDownloadCount {}".format(
+        return "<PythonMinorDownloadCount {}>".format(
             f"{str(self.date)} - {str(self.package)} - {str(self.category)}"
         )
 
@@ -94,8 +96,9 @@ class SystemDownloadCount(Model):
     # system, e.g. Windows or Linux or Darwin (or null)
     category = Column(db.String(8), primary_key=True, nullable=True)
     downloads = Column(db.Integer(), nullable=False)
+    percentages = Column(db.Float(), nullable=True)
 
     def __repr__(self):
-        return "<SystemDownloadCount {}".format(
+        return "<SystemDownloadCount {}>".format(
             f"{str(self.date)} - {str(self.package)} - {str(self.category)}"
         )

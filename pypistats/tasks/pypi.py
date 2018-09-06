@@ -19,7 +19,10 @@ MIRRORS = ("bandersnatch", "z3c.pypimirror", "Artifactory", "devpi")
 SYSTEMS = ("Windows", "Linux", "Darwin")
 
 # postgresql tables to update for __all__
-PSQL_TABLES = ["overall", "python_major", "python_minor", "system"]
+__ALL__TABLES = ["overall", "python_major", "python_minor", "system"]
+
+# postgresql tables to update for percentages
+PERCENTAGE_TABLES = ["python_major", "python_minor", "system"]
 
 # Number of days to retain records
 MAX_RECORD_AGE = 180
@@ -159,7 +162,7 @@ def update_all_package_stats(env="dev", date=None):
     connection, cursor = get_connection_cursor(env)
 
     success = {}
-    for table in PSQL_TABLES:
+    for table in __ALL__TABLES:
         aggregate_query = \
             f"""SELECT date, '__all__' AS package, category, sum(downloads) AS downloads
                 FROM {table} where date = '{date}' GROUP BY date, category"""
@@ -273,7 +276,7 @@ def purge_old_data(env="dev", date=None):
     purge_date = purge_date.strftime('%Y-%m-%d')
 
     success = {}
-    for table in PSQL_TABLES:
+    for table in __ALL__TABLES:
         delete_query = f"""DELETE FROM {table} where date < '{purge_date}'"""
         try:
             print(delete_query)
@@ -399,6 +402,49 @@ def get_query(date):
     """
 
 
+def get_percentage_query(date, table):
+    return f"""
+    WITH totals AS (SELECT date, package, sum(downloads) AS totals
+                    FROM {table}
+                    GROUP BY date, package),
+         new_values AS (SELECT date, package, category, 100.0 * downloads / totals.totals AS percentages
+                        FROM {table}
+                               LEFT JOIN totals USING (date, package))
+    UPDATE {table} t
+    SET percentages = new_values.percentages
+    FROM new_values
+    WHERE t.date = new_values.date
+      AND t.package = new_values.package
+      AND t.category = new_values.category;"""
+
+def update_percentage_stats(env="dev", date=None):
+    print("percentage")
+    start = time.time()
+
+    if date is None:
+        date = str(datetime.date.today() - datetime.timedelta(days=1))
+
+    connection, cursor = get_connection_cursor(env)
+
+    date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+
+    success = {}
+    for table in PERCENTAGE_TABLES:
+        try:
+            percentage_query = get_percentage_query(date, table)
+            print(percentage_query)
+            cursor.execute(percentage_query)
+            connection.commit()
+            success[table] = True
+        except psycopg2.IntegrityError as e:
+            connection.rollback()
+            success[table] = False
+
+    print("Elapsed: " + str(time.time() - start))
+    success["elapsed"] = time.time() - start
+    return success
+
+
 @celery.task
 def etl():
     """Perform the stats download."""
@@ -415,10 +461,11 @@ def etl():
 
 
 if __name__ == "__main__":
-    date = "2018-07-28"
-    env = "prod"
+    date = "2018-09-02"
+    env = "dev"
     print(date, env)
     print(get_daily_download_stats(env, date))
     print(update_all_package_stats(env, date))
     print(update_recent_stats(env, date))
+    print(update_percentage_stats(env, date))
     vacuum_analyze(env)
