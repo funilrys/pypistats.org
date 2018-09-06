@@ -406,10 +406,12 @@ def get_percentage_query(date, table):
     return f"""
     WITH totals AS (SELECT date, package, sum(downloads) AS totals
                     FROM {table}
+                    WHERE date = '{str(date)}'
                     GROUP BY date, package),
          new_values AS (SELECT date, package, category, 100.0 * downloads / totals.totals AS percentages
                         FROM {table}
-                               LEFT JOIN totals USING (date, package))
+                               LEFT JOIN totals USING (date, package)
+                        WHERE date = '{str(date)}')
     UPDATE {table} t
     SET percentages = new_values.percentages
     FROM new_values
