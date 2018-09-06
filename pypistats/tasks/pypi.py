@@ -454,6 +454,7 @@ def etl():
         "downloads": get_daily_download_stats(env, date),
         "__all__": update_all_package_stats(env, date),
         "recent": update_recent_stats(env, date),
+        "percentage": update_percentage_stats(env, date),
         "purge": purge_old_data(env, date),
     }
     results["cleanup"] = vacuum_analyze(env)
